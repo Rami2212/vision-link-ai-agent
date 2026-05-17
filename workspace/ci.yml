@@ -1,0 +1,96 @@
+name: Vision-Link AI Agent — CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    name: Lint & Schema Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest ruff
+
+      - name: Lint with ruff
+        run: ruff check workspace/
+
+      - name: Validate Pydantic schemas
+        run: |
+          python -c "
+          from workspace.state_schema import (
+              PatientContext, ClinicalOutput, LocalizationOutput,
+              ValidationOutput, EvolutionMetrics, PipelineState
+          )
+          ps = PipelineState(
+              patient=PatientContext(
+                  patient_id='CI-001',
+                  age=30,
+                  gender='male',
+                  symptoms=['fever', 'cough'],
+                  language='en'
+              )
+          )
+          assert ps.stage == 'clinical'
+          assert ps.retry_count == 0
+          print('All schemas valid')
+          "
+
+      - name: Validate graph compiles
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'workspace')
+          from orchestrator import compiled_graph
+          assert compiled_graph is not None
+          print('LangGraph StateGraph compiled successfully')
+          "
+
+      - name: Model loader health check
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'workspace')
+          from model_loader import health_check
+          result = health_check('primary')
+          print(f'Model loader result: {result}')
+          if result['status'] == 'error':
+              print('Model endpoint unreachable — check HF_TOKEN secret')
+          else:
+              print('Model loader healthy')
+          "
+
+  notify-on-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: failure()
+    steps:
+      - name: Log failure
+        run: echo "CI failed on ${{ github.ref }} — check Actions tab for details"
