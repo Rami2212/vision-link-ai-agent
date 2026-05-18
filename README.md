@@ -3,6 +3,7 @@
 > **Multi-Agent Autonomous Healthcare Assistant**  
 > Built with **CrewAI** + **LangGraph** for intelligent medical diagnosis and validation  
 > Orchestrated pipeline with self-healing loop and self-evolving backend
+> Built for the [AI Agent Olympics — Lablab.ai](https://lablab.ai)
 
 ---
 
@@ -38,7 +39,7 @@ The Vision-Link AI Agent is a **7-node LangGraph StateGraph** that orchestrates 
                                │
                 ┌──────────────▼──────────────┐
                 │   Clinical Data Agent       │
-                │   (CrewAI + MedLlama)       │
+                │   (CrewAI + MedLlama-3)       │
                 │   (LangGraph Node 2)        │
                 └──────────────┬──────────────┘
                                │
@@ -95,7 +96,7 @@ The Vision-Link AI Agent is a **7-node LangGraph StateGraph** that orchestrates 
 
 ## Key Features
 
-### 🔄 Self-Healing Loop
+### Self-Healing Loop
 
 When the Validation Agent detects errors or missing fields:
 
@@ -107,7 +108,7 @@ When the Validation Agent detects errors or missing fields:
 
 **Benefit:** Reduces latency by avoiding redundant pipeline re-runs while maximizing recovery chances.
 
-### 🧬 Self-Evolving Backend
+### Self-Evolving Backend
 
 Every successful validation triggers an autonomous evolution cycle:
 
@@ -124,44 +125,13 @@ Every successful validation triggers an autonomous evolution cycle:
 
 **Benefit:** Continuous performance optimization without operational overhead.
 
-### 📦 Shared State Schema
+### Shared State Schema
 
-A single **Pydantic v2 `PipelineState` class** serves as the source of truth:
-
-```python
-class PipelineState(BaseModel):
-    # Input
-    patient_query: str
-    
-    # Agent outputs
-    clinical_analysis: Optional[dict] = None
-    localization_data: Optional[dict] = None
-    validation_result: Optional[dict] = None
-    
-    # Metadata
-    confidence_score: float = 0.0
-    retry_count: int = 0
-    errors: List[str] = []
-    
-    # Execution tracking
-    execution_time_ms: float = 0.0
-    node_path: List[str] = []  # Tracks which nodes executed
-```
+A single **Pydantic v2 `PipelineState` class** serves as the source of truth.
 
 - Enforces schema consistency across all agents
 - Enables type-safe transitions between nodes
 - Simplifies debugging and audit trails
-
----
-
-## Core Modules
-
-| File | Owner | Purpose |
-|------|-------|---------|
-| **`workspace/state_schema.py`** | Zentomo | Pydantic v2 shared state definitions — the single source of truth for all agent outputs and pipeline metadata |
-| **`workspace/orchestrator.py`** | Zentomo | LangGraph `StateGraph` implementation — 7-node pipeline, conditional routing, self-healing loop, self-evolving engine |
-| **`workspace/model_loader.py`** | Zentomo | HuggingFace model initialization — loads Llama-3-8B-Instruct and MedLlama fine-tune; manages model switching based on node context |
-| **`workspace/crew_agents.py`** | Subhalaxmi | CrewAI agent definitions — defines Clinical, Localization, and Validation agents with task schemas and Pydantic I/O contracts |
 
 ---
 
@@ -180,25 +150,13 @@ git clone https://github.com/BuhariSalisuAI/vision-link-ai-agent.git
 cd vision-link-ai-agent
 ```
 
-### 2. Create Virtual Environment (Optional but Recommended)
-
-```bash
-# Windows (PowerShell)
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-
-# macOS/Linux
-python -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment
+### 3. Configure Environment
 
 ```bash
 # Copy example .env file
@@ -208,14 +166,14 @@ cp .env.example .env
 # HF_TOKEN=hf_your_token_here
 ```
 
-### 5. Run Smoke Test
+### 4. Run Smoke Test
 
 ```bash
 cd workspace
 python orchestrator.py
 ```
 
-> ⚠️ **First-run tip:** Set `evolution_enabled=False` in `orchestrator.py` to skip the self-evolving backend and focus on core pipeline validation.
+> **First-run tip:** Set `evolution_enabled=False` in `orchestrator.py` to skip the self-evolving backend and focus on core pipeline validation.
 
 ---
 
@@ -233,8 +191,6 @@ python orchestrator.py
 |----------|---------|---------|
 | `EVOLUTION_ENABLED` | `true` | Enable/disable self-evolving backend (`true` or `false`) |
 | `MAX_RETRIES` | `3` | Maximum retry attempts in self-healing loop |
-| `POLLING_INTERVAL_MS` | `500` | Poll interval for model inference (ms) |
-| `FITNESS_THRESHOLD` | `0.75` | Minimum fitness score to accept evolved variant |
 
 ### Example `.env` File
 
@@ -247,11 +203,9 @@ EVOLUTION_ENABLED=false
 
 # Retry and performance tuning
 MAX_RETRIES=3
-POLLING_INTERVAL_MS=500
-FITNESS_THRESHOLD=0.75
 ```
 
-> ⚠️ **Security Note:** Never commit `.env` to version control. Use [GitHub Secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets) for CI/CD.
+> **Security Note:** Never commit `.env` to version control. Use [GitHub Secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets) for CI/CD.
 
 ---
 
@@ -330,7 +284,6 @@ In `workspace/orchestrator.py`:
 
 ```python
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
-SOFT_ERROR_THRESHOLD = 0.5  # Confidence below this triggers LLM patch
 ```
 
 ### Example Scenario
@@ -381,8 +334,8 @@ Pipeline Validation PASSED
 ### Fitness Formula
 
 ```
-fitness_score = (1000 / avg_latency_ms) 
-              + (100 × accuracy_rate) 
+fitness_score = (1000 / avg_latency_ms)
+              + (100 × accuracy_rate)
               − (5 × error_count)
               + (throughput_requests_per_sec / 10)
 ```
@@ -395,16 +348,10 @@ In `workspace/orchestrator.py`:
 
 ```python
 EVOLUTION_ENABLED = os.getenv("EVOLUTION_ENABLED", "false").lower() == "true"
-NUM_VARIANTS = 3
-FITNESS_THRESHOLD = float(os.getenv("FITNESS_THRESHOLD", "0.75"))
-VARIANT_TIMEOUT_SEC = 60
 ```
-
 ---
 
-## Models & LLM Strategy
-
-### Model Selection
+## Model Selection
 
 | Node | Model | Rationale |
 |------|-------|-----------|
@@ -413,28 +360,6 @@ VARIANT_TIMEOUT_SEC = 60
 | **Validation Agent** | `meta-llama/Meta-Llama-3-8B-Instruct` | Reliable structured output generation; excellent for schema validation |
 | **Self-Healing Engine** | `meta-llama/Meta-Llama-3-8B-Instruct` | Balanced reasoning capability + inference speed; effective at error analysis |
 | **Fallback** | `mistralai/Mistral-7B-Instruct-v0.3` | Lightweight alternative; used if primary models unavailable |
-
-### Inference Backend
-
-- **Provider:** HuggingFace Inference API
-- **Auth:** Via `HF_TOKEN` environment variable
-- **Quantization:** 4-bit (bfloat16) for optimal latency/accuracy tradeoff
-- **Batch Size:** Configurable (default: 1 for latency, 8 for throughput testing)
-
-### Model Loading
-
-Handled by `workspace/model_loader.py`:
-
-```python
-def load_model_for_node(node_name: str) -> HuggingFaceInference:
-    """Load appropriate model based on node context."""
-    model_map = {
-        "clinical": "ProbeMedicalYonseiMAILab/medllama3-v20",
-        "localization": "meta-llama/Meta-Llama-3-8B-Instruct",
-        "validation": "meta-llama/Meta-Llama-3-8B-Instruct",
-    }
-    return HuggingFaceInference(model_id=model_map[node_name])
-```
 
 ---
 
@@ -453,8 +378,7 @@ vision-link-ai-agent/
 ├── .env.example                       # Environment template (copy to .env)
 ├── .gitignore                         # Git ignore patterns
 ├── requirements.txt                  # Python dependencies
-├── README.md                          # This file
-└── README-old.md                      # Legacy documentation (reference)
+└── README.md
 ```
 
 ---
@@ -484,10 +408,10 @@ GitHub Actions workflows run on every push to `main` and `dev` branches:
 
 **Checks performed:**
 
-- ✅ **Ruff linting** — Code style validation
-- ✅ **Pydantic schema validation** — State schema integrity
-- ✅ **LangGraph compilation check** — Graph topology validation
-- ✅ **HuggingFace model loader health check** — Model availability verification
+- **Ruff linting** — Code style validation
+- **Pydantic schema validation** — State schema integrity
+- **LangGraph compilation check** — Graph topology validation
+- **HuggingFace model loader health check** — Model availability verification
 
 **Workflow file:** `.github/workflows/ci.yml`
 
@@ -497,42 +421,14 @@ To view CI status: [Vision-Link AI Agent — Actions](https://github.com/BuhariS
 
 ## Team
 
-| Member | GitHub | Role |
-|--------|--------|------|
+| Member            | GitHub                                               | Role |
+|-------------------|------------------------------------------------------|------|
 | **Buhari Salisu** | [@BuhariSalisuAI](https://github.com/BuhariSalisuAI) | Founder & CEO |
-| **Subhalaxmi** | [@Subhalaxmi](https://github.com/Subhalaxmi) | Data Engineer — CrewAI Agents & Tasks |
-| **Zentomo** | [@Zentomo](https://github.com/Zentomo) | Systems Engineer — LangGraph Orchestration & Infrastructure |
-| **Meghana** | [@Meghana](https://github.com/Meghana) | TBD |
+| **Subhalaxmi**    | [@Subhalaxmi](https://github.com/Subhalaxmi)         | Data Engineer — CrewAI Agents & Tasks |
+| **Zentomo**       | [@Zentomo](https://github.com/Zentomo)               | Systems Engineer — LangGraph Orchestration & Infrastructure |
+| **Ramitha**       | [@Ramitha](https://github.com/Rami2212)              |Documentation   |
+| **Meghana**       | [@Meghana](https://github.com/Meghana)               | TBD |
 
 ---
 
-## Roadmap
-
-- [ ] Production-grade error logging and monitoring
-- [ ] Distributed variant execution (Ray, Celery)
-- [ ] Multi-language support expansion
-- [ ] Model performance benchmarking suite
-- [ ] Web UI dashboard for pipeline visualization
-- [ ] A/B testing framework for variant selection
-
----
-
-## License
-
-[Specify your license here — e.g., MIT, Apache 2.0, etc.]
-
----
-
-## Support & Contribution
-
-For issues, feature requests, or contributions:
-
-1. **Open an Issue:** [GitHub Issues](https://github.com/BuhariSalisuAI/vision-link-ai-agent/issues)
-2. **Submit a PR:** Follow [Contributor Guidelines](CONTRIBUTING.md) (create this file)
-3. **Contact:** [Team email or contact method]
-
----
-
-**Vision-Link AI Agent** · AI Agent Olympics · Lablab.ai · May 2026  
-Built with ❤️ for autonomous healthcare intelligence
-
+**Vision-Link AI Agent** · AI Agent Olympics · Lablab.ai · May 2026
